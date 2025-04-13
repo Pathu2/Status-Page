@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,11 @@ const statusOptions = [
   { value: "maintenance", label: "Under Maintenance" },
 ];
 
-export default function AddServicePage() {
+export default function EditServicePage() {
   const router = useRouter();
-  const { orgId } = useParams();
+  const { orgId, serviceId } = useParams();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -29,6 +31,31 @@ export default function AddServicePage() {
     status: "operational",
     rolesAllowed: [] as string[],
   });
+
+  useEffect(() => {
+    async function fetchService() {
+      try {
+        const res = await fetch(`/api/org/${orgId}/services/${serviceId}`);
+        if (!res.ok) throw new Error("Failed to fetch service");
+        const data = await res.json();
+        setFormData({
+          name: data.name,
+          description: data.description || "",
+          url: data.url || "",
+          status: data.status,
+          rolesAllowed: data.rolesAllowed || [],
+        });
+      } catch (error) {
+        console.error("Error fetching service:", error);
+        toast.error("Failed to load service data");
+        router.push(`/org/${orgId}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchService();
+  }, [orgId, serviceId, router]);
 
   const handleCheckboxChange = (role: string) => {
     setFormData((prev) => {
@@ -44,28 +71,41 @@ export default function AddServicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch(`/api/org/${orgId}/services`, {
-      method: "POST",
-      body: JSON.stringify(formData),
-      headers: { "Content-Type": "application/json" },
-    });
+    setSaving(true);
 
-    if (res.ok) {
-      toast.success("Service created!");
+    try {
+      const res = await fetch(`/api/org/${orgId}/services/${serviceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!res.ok) throw new Error("Failed to update service");
+
+      toast.success("Service updated successfully");
       router.push(`/org/${orgId}`);
-    } else {
-      toast.error("Something went wrong.");
+    } catch (error) {
+      console.error("Error updating service:", error);
+      toast.error("Failed to update service");
+    } finally {
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-xl mx-auto bg-white rounded-xl shadow-lg p-8">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">Add New Service</h2>
-          <p className="text-gray-600 mt-2">
-            Create a new service for your organization
-          </p>
+          <h2 className="text-3xl font-bold text-gray-900">Edit Service</h2>
+          <p className="text-gray-600 mt-2">Update service information</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -158,12 +198,30 @@ export default function AddServicePage() {
             </div>
           </div>
 
-          <Button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors"
-          >
-            Add Service
-          </Button>
+          <div className="flex gap-4 flex-col">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => router.push(`/org/${orgId}`)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={saving}
+            >
+              {saving ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
+                  Saving...
+                </div>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </div>
         </form>
       </div>
     </div>

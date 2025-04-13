@@ -6,7 +6,7 @@ import { NextRequest } from "next/server";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { orgId: string } }
+  { params }: { params: Promise<{ orgId: string }> }
 ) {
   const { userId } = await auth();
   if (!userId)
@@ -15,7 +15,7 @@ export async function POST(
     });
 
   const { email, role } = await req.json();
-  const { orgId } = params;
+  const { orgId } = await params;
 
   if (!email || !role) {
     return new Response(

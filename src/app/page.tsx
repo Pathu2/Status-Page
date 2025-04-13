@@ -5,45 +5,103 @@ import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { SignOutButton } from "@clerk/nextjs";
+import { Plus } from "lucide-react";
+import { toast } from "sonner";
+import { Organization, Invite } from "@/types";
+
+interface InviteWithOrg extends Invite {
+  organization?: {
+    name: string;
+  };
+}
 
 export default function HomePage() {
   const { isSignedIn, user } = useUser();
-  const [orgs, setOrgs] = useState<any[]>([]);
+  const [orgs, setOrgs] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
-  const [invites, setInvites] = useState<any[]>([]);
+  const [invites, setInvites] = useState<InviteWithOrg[]>([]);
 
-  useEffect(() => {
-    async function fetchInvites() {
+  // Function to fetch organizations
+  const fetchOrgs = async () => {
+    try {
+      const res = await fetch("/api/auth/sync", { method: "POST" });
+      const data = await res.json();
+      setOrgs(data.orgs || []);
+    } catch (error) {
+      console.error("Sync failed:", error);
+      toast.error("Failed to fetch organizations");
+    }
+  };
+
+  // Function to fetch invites
+  const fetchInvites = async () => {
+    try {
       const res = await fetch("/api/dashboard/invites");
       if (res.ok) {
         const json = await res.json();
         setInvites(json);
       }
+    } catch (error) {
+      console.error("Failed to fetch invites:", error);
+      toast.error("Failed to fetch invites");
     }
-    fetchInvites();
-  }, []);
+  };
 
   useEffect(() => {
+    let mounted = true;
+
     if (isSignedIn && user) {
-      const syncUser = async () => {
+      const initializeData = async () => {
         try {
-          const res = await fetch("/api/auth/sync", { method: "POST" });
-          const data = await res.json();
-          setOrgs(data.orgs || []);
-        } catch (err) {
-          console.error("Sync failed", err);
+          if (mounted) {
+            await fetchOrgs();
+            await fetchInvites();
+          }
         } finally {
-          setLoading(false);
+          if (mounted) {
+            setLoading(false);
+          }
         }
       };
 
-      syncUser();
+      initializeData();
     } else {
       setLoading(false);
     }
+
+    return () => {
+      mounted = false;
+    };
   }, [isSignedIn, user]);
 
-  if (loading) return <p className="text-center mt-10">Loading...</p>;
+  const handleAcceptInvite = async (inviteId: string) => {
+    try {
+      const res = await fetch(`/api/dashboard/invites/${inviteId}/accept`, {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        // Remove the accepted invite from the invites list
+        setInvites((prev) => prev.filter((i) => i.id !== inviteId));
+        // Fetch updated organizations list
+        await fetchOrgs();
+        toast.success("Invite accepted successfully!");
+      } else {
+        toast.error("Failed to accept invite");
+      }
+    } catch (error) {
+      console.error("Error accepting invite:", error);
+      toast.error("An error occurred while accepting the invite");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   if (!isSignedIn) {
     return (
@@ -79,61 +137,70 @@ export default function HomePage() {
         </SignOutButton>
       </div>
 
-      {orgs.length === 0 ? (
-        <p className="text-muted-foreground">
-          You’re not part of any organizations yet.
-        </p>
-      ) : (
-        <ul className="space-y-4">
-          {orgs.map((org) => (
-            <li
-              key={org.id}
-              className="p-4 rounded-xl border shadow-sm hover:shadow-md transition"
-            >
-              <div className="font-medium">{org.name}</div>
-              <Link href={`org/${org.id}`}>
-                <Button className="mt-2" size="sm">
-                  View Dashboard
-                </Button>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-semibold">Your Organizations</h2>
+          <Link href="/org/create">
+            <Button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+              <Plus className="w-4 h-4" />
+              Create Organization
+            </Button>
+          </Link>
+        </div>
+
+        {orgs.length === 0 ? (
+          <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No organizations yet
+            </h3>
+            <p className="text-gray-500 mb-4">
+              Create your first organization to get started
+            </p>
+          </div>
+        ) : (
+          <ul className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {orgs.map((org) => (
+              <li
+                key={org.id}
+                className="p-6 rounded-xl border shadow-sm hover:shadow-md transition"
+              >
+                <div className="font-medium text-xl mb-2">{org.name}</div>
+                {org.description && (
+                  <p className="text-gray-600 mb-4 text-sm">
+                    {org.description}
+                  </p>
+                )}
+                <Link href={`org/${org.id}`}>
+                  <Button className="w-full" size="sm">
+                    View Dashboard
+                  </Button>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {invites.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold mb-2">Pending Invites</h2>
-          <ul className="space-y-2">
-            {invites.map((invite: any) => (
+        <div className="mt-8">
+          <h2 className="text-2xl font-semibold mb-4">Pending Invites</h2>
+          <ul className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {invites.map((invite: InviteWithOrg) => (
               <li
                 key={invite.id}
-                className="p-4 bg-yellow-50 dark:bg-yellow-900 rounded space-y-1"
+                className="p-6 bg-yellow-50 rounded-xl border border-yellow-100 space-y-3"
               >
                 <p>
-                  <span className="font-semibold">Organization ID:</span>{" "}
-                  {invite.orgId}
+                  <span className="font-semibold">Organization:</span>{" "}
+                  {invite.organization?.name || invite.orgId}
                 </p>
                 <p>
-                  <span className="font-semibold">Role:</span> {invite.role}
+                  <span className="font-semibold">Role:</span>{" "}
+                  <span className="capitalize">{invite.role}</span>
                 </p>
                 <Button
-                  onClick={async () => {
-                    const res = await fetch(
-                      `/api/dashboard/invites/${invite.id}/accept`,
-                      {
-                        method: "POST",
-                      }
-                    );
-                    if (res.ok) {
-                      setInvites((prev) =>
-                        prev.filter((i) => i.id !== invite.id)
-                      );
-                      alert("Invite accepted!");
-                    } else {
-                      alert("Error accepting invite");
-                    }
-                  }}
+                  className="w-full"
+                  onClick={() => handleAcceptInvite(invite.id)}
                 >
                   Accept Invite
                 </Button>

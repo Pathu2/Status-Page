@@ -6,10 +6,10 @@ import { NextRequest } from "next/server";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { orgId: string } }
+  { params }: { params: Promise<{ orgId: string }> }
 ) {
   const { userId } = await auth();
-  const orgId = params.orgId;
+  const { orgId } = await params;
 
   if (!userId) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
