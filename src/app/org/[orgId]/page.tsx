@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { DeleteServiceModal } from "@/components/DeleteServiceModal";
 import { Pencil, Trash2, ArrowLeft } from "lucide-react";
 import { Organization, Service } from "@/types";
+import { Logo } from "@/components/Logo";
 
 interface DashboardData {
   organization: Organization;
@@ -139,15 +140,18 @@ export default function OrgDashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-            onClick={() => router.push("/")}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </Button>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              onClick={() => router.push("/")}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            <Logo />
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
